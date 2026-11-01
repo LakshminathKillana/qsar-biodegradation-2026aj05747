@@ -1,0 +1,209 @@
+from pathlib import Path
+import json
+
+import pandas as pd
+
+
+ROOT_DIR = Path(__file__).resolve().parent
+METRICS_PATH = ROOT_DIR / "results" / "model_metrics.csv"
+METADATA_PATH = ROOT_DIR / "model" / "metadata.json"
+CONFIG_PATH = ROOT_DIR / "project_config.json"
+README_PATH = ROOT_DIR / "README.md"
+
+if not METRICS_PATH.exists():
+    raise FileNotFoundError("Run train_and_evaluate.py first.")
+
+with open(METADATA_PATH, "r", encoding="utf-8") as handle:
+    metadata = json.load(handle)
+
+with open(CONFIG_PATH, "r", encoding="utf-8") as handle:
+    config = json.load(handle)
+
+metrics = pd.read_csv(METRICS_PATH)
+
+display_columns = [
+    "ML Model Name",
+    "Accuracy",
+    "AUC",
+    "Precision",
+    "Recall",
+    "F1",
+    "MCC",
+]
+
+metrics_display = metrics[display_columns].copy()
+
+for column in ["Accuracy", "AUC", "Precision", "Recall", "F1", "MCC"]:
+    metrics_display[column] = metrics_display[column].map(lambda x: f"{x:.4f}")
+
+def markdown_table(df):
+    headers = list(df.columns)
+    lines = [
+        "| " + " | ".join(headers) + " |",
+        "| " + " | ".join(["---"] * len(headers)) + " |",
+    ]
+    for _, row in df.iterrows():
+        lines.append("| " + " | ".join(map(str, row.tolist())) + " |")
+    return "\n".join(lines)
+
+def observation_for(row, table):
+    name = row["ML Model Name"]
+    best_mcc = table["MCC"].max()
+    best_auc = table["AUC"].max()
+    best_recall = table["Recall"].max()
+    best_precision = table["Precision"].max()
+
+    notes = [
+        f"{name} achieved Accuracy={row['Accuracy']:.4f}, "
+        f"AUC={row['AUC']:.4f}, Precision={row['Precision']:.4f}, "
+        f"Recall={row['Recall']:.4f}, F1={row['F1']:.4f}, "
+        f"and MCC={row['MCC']:.4f}."
+    ]
+
+    if row["MCC"] == best_mcc:
+        notes.append("It produced the strongest overall MCC in this experiment.")
+    if row["AUC"] == best_auc:
+        notes.append("It also achieved the highest AUC.")
+    if row["Recall"] == best_recall:
+        notes.append("Its recall was the highest among the five models.")
+    if row["Precision"] == best_precision:
+        notes.append("Its precision was the highest among the five models.")
+
+    return " ".join(notes)
+
+observations = {}
+for _, row in metrics.iterrows():
+    observations[row["ML Model Name"]] = observation_for(row, metrics)
+
+winner = metadata["winner"]
+
+readme = f"""# BioDegrade Lab — QSAR Classification Benchmark
+
+## a. Problem Statement
+
+The objective of this project is to compare five supervised machine-learning
+classifiers for predicting whether a chemical is ready biodegradable from
+molecular-descriptor data.
+
+The project trains all five required classifiers on the same training split,
+evaluates them on one held-out test split, saves the trained models, and exposes
+the saved models through an interactive Streamlit application. The Streamlit
+application evaluates uploaded test data without retraining the models.
+
+## b. Dataset Description
+
+- **Dataset:** UCI QSAR Biodegradation
+- **UCI Dataset ID:** 254
+- **DOI:** 10.24432/C5H60M
+- **Task:** Binary classification
+- **Instances:** {metadata['instance_count']}
+- **Input features:** {metadata['feature_count']}
+- **Feature type:** Numeric molecular descriptors
+- **Target:** Ready biodegradable (RB=1) vs Not ready biodegradable (NRB=0)
+- **Missing values:** None in the UCI dataset
+- **Train/test split:** {(1-metadata['test_size'])*100:.0f}% / {metadata['test_size']*100:.0f}%
+- **Random seed:** {metadata['random_seed']}
+
+UCI source: https://archive.ics.uci.edu/dataset/254/qsar+biodegradation
+
+## c. GitHub Repository Link
+
+{config['github_url']}
+
+## Live Streamlit Application
+
+{config['streamlit_url']}
+
+## d. Models Used and Evaluation Metrics
+
+The five required classification models are:
+
+1. Logistic Regression
+2. Decision Tree Classifier
+3. K-Nearest Neighbor Classifier
+4. Gaussian Naive Bayes
+5. Support Vector Machine
+
+All models were evaluated using Accuracy, AUC, Precision, Recall, F1 Score,
+and Matthews Correlation Coefficient (MCC).
+
+### Comparison Table
+
+{markdown_table(metrics_display)}
+
+## Model Performance Observations
+
+| ML Model Name | Observation about model performance |
+| --- | --- |
+| Logistic Regression | {observations['Logistic Regression']} |
+| Decision Tree | {observations['Decision Tree']} |
+| K-Nearest Neighbors | {observations['K-Nearest Neighbors']} |
+| Gaussian Naive Bayes | {observations['Gaussian Naive Bayes']} |
+| Support Vector Machine | {observations['Support Vector Machine']} |
+| **Overall, Winner for the dataset?** | **{winner}**. The winner was selected using the highest MCC, with AUC and F1 as tie-breakers. |
+
+## Streamlit Application Features
+
+The Streamlit application includes:
+
+- Test CSV upload
+- Model-selection dropdown
+- Accuracy, AUC, Precision, Recall, F1 and MCC display
+- Confusion matrix
+- Classification report
+- Comparison of all five saved models on the uploaded test data
+
+The uploaded test data contains all model input features and the target column.
+The application loads the saved `.joblib` pipelines and evaluates them without
+retraining.
+
+## Project Structure
+
+```text
+qsar_biodegradation_ml_2026AJ05747/
+├── prepare_dataset.py
+├── train_and_evaluate.py
+├── streamlit_app.py
+├── generate_readme.py
+├── verify_project.py
+├── requirements.txt
+├── project_config.json
+├── README.md
+├── test_data.csv
+├── data/
+│   └── qsar_biodegradation.csv
+├── model/
+│   ├── logistic_regression.joblib
+│   ├── decision_tree.joblib
+│   ├── knn.joblib
+│   ├── gaussian_naive_bayes.joblib
+│   ├── support_vector_machine.joblib
+│   └── metadata.json
+└── results/
+    ├── model_metrics.csv
+    ├── *_confusion_matrix.csv
+    └── *_classification_report.csv
+```
+
+## Running the Project
+
+```bash
+python -m pip install -r requirements.txt
+python prepare_dataset.py
+python train_and_evaluate.py
+python generate_readme.py
+python verify_project.py
+streamlit run streamlit_app.py
+```
+
+## Reproducibility
+
+The same held-out test set is used for all five classifiers. The file
+`test_data.csv` contains the exact test observations used for model evaluation.
+The trained models are saved before deployment, and the Streamlit app performs
+evaluation only; it does not call model training on uploaded data.
+"""
+
+README_PATH.write_text(readme, encoding="utf-8")
+print(f"Generated README: {README_PATH}")
+print(f"Winner: {winner}")

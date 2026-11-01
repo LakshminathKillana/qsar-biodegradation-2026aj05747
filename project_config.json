@@ -1,8 +1,8 @@
 {
   "student_id": "2026AJ05747",
   "project_title": "BioDegrade Lab - QSAR Classification Benchmark",
-  "github_url": "PASTE_GITHUB_REPOSITORY_URL_HERE",
-  "streamlit_url": "PASTE_STREAMLIT_APP_URL_HERE",
+  "github_url": "https://github.com/LakshminathKillana/qsar-biodegradation-2026aj05747",
+  "streamlit_url": "https://qsar-biodegradation-2026aj05747.streamlit.app/",
   "random_seed": 5747,
   "test_size": 0.2
 }
