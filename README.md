@@ -78,7 +78,7 @@ The Streamlit application includes:
 - Accuracy, AUC, Precision, Recall, F1 and MCC display
 - Confusion matrix
 - Classification report
-- Comparison of all five saved models on the uploaded test data
+- Comparison of all the five saved models on the uploaded test data
 
 The uploaded test data contains all model input features and the target column.
 The application loads the saved `.joblib` pipelines and evaluates them without
