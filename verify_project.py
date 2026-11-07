@@ -108,7 +108,7 @@ required_readme_sections = [
     "Models Used and Evaluation Metrics",
     "Comparison Table",
     "Model Performance Observations",
-    "Overall, Winner for the dataset?",
+    "Overall, Winner for your dataset?",
 ]
 
 for section in required_readme_sections:
