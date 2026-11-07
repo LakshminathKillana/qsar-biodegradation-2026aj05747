@@ -575,25 +575,60 @@ def chart_radar(df):
     return fig
 
 
-def styled_df(df):
+def styled_df(df, highlight_model=None):
     num_cols = ["Accuracy", "AUC", "Precision", "Recall", "F1", "MCC"]
+
+    def _style_cells(data):
+        # Clean corporate table style: pure white, clean borders, subtle highlight for best per col & active model
+        styles = pd.DataFrame("", index=data.index, columns=data.columns)
+        for col in num_cols:
+            if col in data.columns:
+                max_val = data[col].max()
+                for idx in data.index:
+                    val = data.loc[idx, col]
+                    if pd.notnull(val) and abs(val - max_val) < 1e-9:
+                        # Soft badge highlight for top performer in metric
+                        styles.loc[idx, col] = "font-weight: 700; color: #1e3a8a; background-color: #f1f5f9;"
+        
+        if highlight_model:
+            for idx in data.index:
+                if data.loc[idx, "Model"] == highlight_model:
+                    for col in data.columns:
+                        curr = styles.loc[idx, col]
+                        styles.loc[idx, col] = curr + "; border-left: 2px solid #2563eb; background-color: #f8fafc;"
+        return styles
+
     return (
         df.style
-          .format({c: "{:.4f}" for c in num_cols})
-          .background_gradient(subset=num_cols, cmap="Blues", vmin=0.5, vmax=1.0)
-          .set_properties(**{"text-align": "center", "font-size": "13px"})
+          .format({c: "{:.4f}" for c in num_cols if c in df.columns})
+          .apply(_style_cells, axis=None)
+          .set_properties(**{
+              "text-align": "center",
+              "font-size": "13px",
+              "color": "#1e293b",
+              "padding": "0.6rem 0.9rem",
+              "border-bottom": "1px solid #f1f5f9"
+          })
           .set_table_styles([
               {"selector": "th", "props": [
                   ("background-color", "#f8fafc"),
-                  ("color", "#374151"),
+                  ("color", "#475569"),
                   ("font-weight", "600"),
-                  ("font-size", "11.5px"),
+                  ("font-size", "12px"),
+                  ("letter-spacing", "0.02em"),
+                  ("text-transform", "uppercase"),
                   ("text-align", "center"),
-                  ("border-bottom", "2px solid #e2e8f0"),
-                  ("padding", "0.55rem 0.9rem"),
+                  ("border-bottom", "1px solid #cbd5e1"),
+                  ("padding", "0.65rem 0.9rem"),
               ]},
-              {"selector": "td",   "props": [("padding", "0.5rem 0.9rem")]},
-              {"selector": "tr:hover td", "props": [("background-color", "#f8fafc")]},
+              {"selector": "td:first-child", "props": [
+                  ("text-align", "left"),
+                  ("font-weight", "600"),
+                  ("color", "#0f172a"),
+              ]},
+              {"selector": "tr:hover td", "props": [
+                  ("background-color", "#f8fafc"),
+              ]},
           ])
     )
 
@@ -962,11 +997,12 @@ tab_tbl, tab_bar, tab_roc, tab_radar = st.tabs([
 
 with tab_tbl:
     st.dataframe(
-        styled_df(comp_df),
+        styled_df(comp_df, highlight_model=sel_name),
         use_container_width=True,
         hide_index=True,
         height=236,
     )
+    st.caption("Bold values indicate best performance per metric. Left blue border indicates currently selected model.")
     st.download_button(
         "↓  Export comparison table (.csv)",
         data=comp_df.to_csv(index=False).encode(),
