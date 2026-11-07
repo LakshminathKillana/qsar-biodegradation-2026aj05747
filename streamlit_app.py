@@ -27,16 +27,61 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+    .block-container {
+        max-width: 1450px;
+        padding-top: 1.6rem;
+        padding-bottom: 2rem;
+    }
+
     .hero {
-        padding: 1.2rem 1.4rem;
+        padding: 1.45rem 1.6rem;
         border-radius: 16px;
         background: linear-gradient(120deg, #eef7f2, #f6f7fb);
         border: 1px solid #d9e7df;
-        margin-bottom: 1rem;
+        margin-bottom: 0.8rem;
     }
+
+    .hero h1 {
+        margin-bottom: 0.35rem;
+        font-size: 2.05rem;
+    }
+
+    .hero p {
+        margin-bottom: 0;
+        color: #475569;
+        font-size: 1rem;
+        line-height: 1.55;
+    }
+
+    div[data-testid="stMetric"] {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        padding: 0.75rem 0.85rem;
+        border-radius: 12px;
+    }
+
+    div[data-testid="stMetricLabel"] {
+        font-weight: 600;
+    }
+
     .small-note {
         color: #5a6570;
         font-size: 0.92rem;
+        line-height: 1.5;
+    }
+
+    .section-note {
+        color: #64748b;
+        font-size: 0.9rem;
+        margin-top: -0.35rem;
+        margin-bottom: 0.8rem;
+    }
+
+    .footer-note {
+        color: #64748b;
+        font-size: 0.85rem;
+        text-align: center;
+        margin-top: 1.5rem;
     }
     </style>
     """,
@@ -96,8 +141,8 @@ st.markdown(
     <div class="hero">
       <h1>🧪 BioDegrade Lab</h1>
       <p>
-        Interactive comparison of five classification models for
-        predicting ready biodegradability from molecular descriptors.
+        Interactive evaluation of five machine-learning classifiers for
+        predicting ready biodegradability from QSAR molecular descriptors.
       </p>
     </div>
     """,
@@ -106,10 +151,10 @@ st.markdown(
 
 st.caption(
     "UCI QSAR Biodegradation • 41 molecular descriptors • "
-    "saved-model evaluation only"
+    "5 trained classifiers • saved-model evaluation only"
 )
 
-with st.expander("About this experiment"):
+with st.expander("About this evaluation"):
     st.write(
         "The app evaluates previously trained classifiers on uploaded "
         "held-out test data. It does not retrain any model after upload."
@@ -127,10 +172,20 @@ if TEST_DATA_PATH.exists():
         mime="text/csv",
     )
 
+st.subheader("Test Data")
+
+st.markdown(
+    '<div class="section-note">'
+    'Upload the held-out CSV used for evaluation. '
+    'The file must contain all 41 input features and the target column.'
+    '</div>',
+    unsafe_allow_html=True,
+)
+
 uploaded_file = st.file_uploader(
     "Upload test CSV",
     type=["csv"],
-    help="The CSV must contain all 41 input features and the target column.",
+    help="Use the generated test_data.csv file for this evaluation.",
 )
 
 if uploaded_file is None:
@@ -170,16 +225,36 @@ if y_uploaded.nunique() < 2:
     st.error("Both target classes are required to calculate AUC.")
     st.stop()
 
-st.subheader("Uploaded Test Data")
+st.subheader("Uploaded Test Data Summary")
 summary_columns = st.columns(4)
-summary_columns[0].metric("Rows", len(uploaded))
+summary_columns[0].metric("Test Rows", len(uploaded))
 summary_columns[1].metric("Input Features", len(FEATURE_NAMES))
-summary_columns[2].metric("Class 0", int((y_uploaded == 0).sum()))
-summary_columns[3].metric("Class 1", int((y_uploaded == 1).sum()))
+summary_columns[2].metric("NRB Samples", int((y_uploaded == 0).sum()))
+summary_columns[3].metric("RB Samples", int((y_uploaded == 1).sum()))
 
-st.dataframe(uploaded.head(8), use_container_width=True)
+st.caption(
+    "Target classes: 0 = Not Ready Biodegradable (NRB), "
+    "1 = Ready Biodegradable (RB)."
+)
+
+with st.expander("Preview uploaded test data", expanded=False):
+    st.dataframe(
+        uploaded.head(8),
+        use_container_width=True,
+        hide_index=True,
+    )
 
 st.divider()
+
+st.subheader("Model Evaluation")
+
+st.markdown(
+    '<div class="section-note">'
+    'Select any trained classifier to view its evaluation results '
+    'on the uploaded test data.'
+    '</div>',
+    unsafe_allow_html=True,
+)
 
 selected_model_name = st.selectbox(
     "Choose a classification model",
@@ -193,7 +268,7 @@ selected_predictions, selected_metrics = evaluate(
     y_uploaded,
 )
 
-st.header(f"Evaluation — {selected_model_name}")
+st.markdown(f"### Results — {selected_model_name}")
 
 metric_order = ["Accuracy", "AUC", "Precision", "Recall", "F1", "MCC"]
 metric_cols = st.columns(6)
@@ -209,11 +284,11 @@ with left:
 
     fig, ax = plt.subplots(figsize=(5.2, 4.2))
     image = ax.imshow(cm)
-    ax.set_xticks([0, 1], labels=["Predicted 0", "Predicted 1"])
-    ax.set_yticks([0, 1], labels=["Actual 0", "Actual 1"])
+    ax.set_xticks([0, 1], labels=["Predicted NRB", "Predicted RB"])
+    ax.set_yticks([0, 1], labels=["Actual NRB", "Actual RB"])
     ax.set_xlabel("Predicted class")
     ax.set_ylabel("Actual class")
-    ax.set_title(selected_model_name)
+    ax.set_title(f"{selected_model_name} — Confusion Matrix")
 
     for row in range(2):
         for col in range(2):
@@ -231,6 +306,10 @@ with left:
     fig.tight_layout()
     st.pyplot(fig, clear_figure=True)
 
+    st.caption(
+        "NRB = Not Ready Biodegradable • RB = Ready Biodegradable"
+    )
+
 with right:
     st.subheader("Classification Report")
     report = classification_report(
@@ -243,7 +322,15 @@ with right:
     st.dataframe(report_df, use_container_width=True)
 
 st.divider()
-st.header("All Five Models on the Uploaded Test Data")
+st.header("All Five Models Comparison")
+
+st.markdown(
+    '<div class="section-note">'
+    'All five saved classifiers are evaluated on the same uploaded '
+    'test data for a direct comparison.'
+    '</div>',
+    unsafe_allow_html=True,
+)
 
 comparison_rows = []
 
@@ -278,14 +365,24 @@ winner = (
 )
 
 st.success(
-    f"Highest-ranked model on this uploaded test set: {winner} "
-    "(MCC primary; AUC and F1 tie-breakers)."
+    f"🏆 Best overall model on this uploaded test set: {winner}. "
+    "Ranking uses MCC as the primary criterion, "
+    "with AUC and F1 as tie-breakers."
 )
 
 st.markdown(
     '<p class="small-note">'
-    'All predictions above come from saved .joblib models. '
-    'No training is performed on the uploaded CSV.'
+    'All predictions above come from previously trained .joblib models. '
+    'The uploaded CSV is used only for evaluation; no model training '
+    'or fitting is performed inside this application.'
     '</p>',
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    '<div class="footer-note">'
+    'BioDegrade Lab • Machine Learning Assignment 2 • '
+    'UCI QSAR Biodegradation Dataset'
+    '</div>',
     unsafe_allow_html=True,
 )
